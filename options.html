@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>全局视频控制器 - 设置</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .option {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            width: 100%;
+        }
+
+        .shortcut-option {
+            margin-bottom: 10px;
+        }
+
+        .save-button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .save-button:hover {
+            background-color: #45a049;
+        }
+
+        #save-status {
+            margin-left: 10px;
+            color: #4CAF50;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>全局视频控制器 - 设置</h2>
+
+    <div class="option">
+        <label for="shortcut">选择快捷键:</label>
+        <select id="shortcut">
+            <option value="Ctrl+Space">Ctrl+Space (Windows/Linux)</option>
+            <option value="Command+Space">Command+Space (Mac)</option>
+            <option value="Alt+Space">Alt+Space</option>
+            <option value="Ctrl+P">Ctrl+P</option>
+            <option value="Command+P">Command+P</option>
+        </select>
+    </div>
+
+    <div class="option">
+        <label>提示设置:</label>
+        <div class="shortcut-option">
+            <input type="checkbox" id="showToast" checked>
+            <label for="showToast">显示播放状态提示</label>
+        </div>
+        <div class="shortcut-option">
+            <input type="checkbox" id="showNotification" checked>
+            <label for="showNotification">播放失败时显示通知</label>
+        </div>
+    </div>
+
+    <button class="save-button" id="saveButton">保存设置</button>
+    <span id="save-status">设置已保存</span>
+
+    <script>
+        // 加载设置
+        document.addEventListener('DOMContentLoaded', function () {
+            // 从存储中获取设置
+            chrome.storage.sync.get(['shortcut', 'showToast', 'showNotification'], function (items) {
+                document.getElementById('shortcut').value = items.shortcut || 'Ctrl+Space';
+                document.getElementById('showToast').checked = items.showToast !== undefined ? items.showToast : true;
+                document.getElementById('showNotification').checked = items.showNotification !== undefined ? items.showNotification : true;
+            });
+
+            // 保存设置
+            document.getElementById('saveButton').addEventListener('click', function () {
+                const shortcut = document.getElementById('shortcut').value;
+                const showToast = document.getElementById('showToast').checked;
+                const showNotification = document.getElementById('showNotification').checked;
+
+                // 保存到存储
+                chrome.storage.sync.set({
+                    shortcut: shortcut,
+                    showToast: showToast,
+                    showNotification: showNotification
+                }, function () {
+                    // 显示保存成功提示
+                    const status = document.getElementById('save-status');
+                    status.style.display = 'inline';
+                    setTimeout(function () {
+                        status.style.display = 'none';
+                    }, 2000);
+
+                    // 更新快捷键
+                    chrome.runtime.sendMessage({ action: 'updateShortcut', shortcut: shortcut });
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
