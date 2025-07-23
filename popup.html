@@ -52,7 +52,23 @@
 
     <div class="status" id="status">正在连接...</div>
 
-    <button id="toggleButton">播放/暂停</button>
+    <div class="shortcut-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-top: 10px;">
+                <span style="font-weight: bold;">自定义快捷键</span>
+                <span id="toggle-icon">▼</span>
+            </div>
+            
+            <div id="shortcut-config" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="shortcutInput" placeholder="按下想要的快捷键..." readonly style="flex-grow: 1; padding: 8px;">
+                    <button id="recordButton" class="save-button" style="background-color: #4CAF50;">录制</button>
+                    <button id="resetButton" class="save-button" style="background-color: #f44336;">重置</button>
+                </div>
+                <small style="color: #666; margin-top: 5px; display: block;">注意: 仅支持以Ctrl、Alt、Command（macos）开头的组合键，如Ctrl+Shift+Space</small>
+            </div>
+        </div>
+
+    <button id="toggleButton" style="margin-top: 10px;">播放/暂停</button>
 
     <div class="shortcut" id="shortcut-info"></div>
 

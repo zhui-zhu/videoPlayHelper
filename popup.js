@@ -9,11 +9,107 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // 测试快捷键配置
+  // 切换快捷键配置区域显示/隐藏
+  function toggleShortcutConfig() {
+    const configSection = document.getElementById('shortcut-config');
+    const toggleIcon = document.getElementById('toggle-icon');
+    if (configSection && toggleIcon) {
+      const isHidden = configSection.style.display === 'none';
+      configSection.style.display = isHidden ? 'block' : 'none';
+      toggleIcon.textContent = isHidden ? '▲' : '▼';
+    }
+  }
+  
+  // 快捷键录制状态
+  let isRecording = false;
+  let currentShortcut = '';
+
+  // 测试快捷键配置并显示当前值
   function testShortcutConfig() {
     chrome.storage.sync.get('customShortcut', function(data) {
-      const shortcut = data.customShortcut || '未设置';
-      setElementText('shortcut-info', `当前快捷键: ${shortcut}`);
+      currentShortcut = data.customShortcut || 'Ctrl+Shift+Space';
+      document.getElementById('shortcutInput').value = currentShortcut;
+      setElementText('shortcut-info', `当前快捷键: ${currentShortcut}`);
+    });
+  }
+
+  // 处理按键事件，录制快捷键
+  function handleKeyDown(e) {
+    if (!isRecording) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 收集修饰键
+    const modifiers = [];
+    if (e.ctrlKey) modifiers.push('Ctrl');
+    if (e.altKey) modifiers.push('Alt');
+    if (e.shiftKey) modifiers.push('Shift');
+    if (e.metaKey) modifiers.push('Command');
+
+    // 获取主键（忽略修饰键本身）
+    const key = e.key.toLowerCase();
+    if (['control', 'alt', 'shift', 'meta', 'command'].includes(key)) return;
+
+    // 特殊按键映射
+    const keyMap = {
+      ' ': 'Space',
+      'enter': 'Enter',
+      'tab': 'Tab',
+      'escape': 'Esc',
+      'backspace': 'Backspace',
+      'delete': 'Del',
+      'arrowup': '↑',
+      'arrowdown': '↓',
+      'arrowleft': '←',
+      'arrowright': '→',
+      'home': 'Home',
+      'end': 'End',
+      'pageup': 'PageUp',
+      'pagedown': 'PageDown'
+    };
+
+    // 组合快捷键字符串
+    if (modifiers.length > 0 || key) {
+      const displayKey = keyMap[key] || key.toUpperCase();
+      currentShortcut = modifiers.join('+') + (modifiers.length > 0 ? '+' : '') + displayKey;
+      document.getElementById('shortcutInput').value = currentShortcut;
+    }
+  }
+
+  // 保存快捷键
+  function saveShortcut() {
+    if (!currentShortcut) {
+      alert('请先录制快捷键');
+      return;
+    }
+
+    // 验证快捷键格式
+    const parts = currentShortcut.split('+');
+    const hasModifier = parts.some(part => ['Ctrl', 'Alt', 'Shift', 'Command'].includes(part));
+    const specialKeys = ['Space', 'Enter', 'Tab', 'Esc', 'Backspace', 'Del', '↑', '↓', '←', '→', 'Home', 'End', 'PageUp', 'PageDown'];
+    const isValid = hasModifier || specialKeys.includes(parts[0]);
+
+    if (!isValid) {
+      alert('请至少使用一个修饰键(Ctrl/Alt/Shift/Command)或特殊按键');
+      return;
+    }
+
+    // 保存到存储
+    chrome.storage.sync.set({ customShortcut: currentShortcut }, function() {
+      setElementText('shortcut-info', `当前快捷键: ${currentShortcut}`);
+      setElementText('status', '快捷键已保存');
+
+      // 通知后台更新所有标签页
+      chrome.runtime.sendMessage({
+        action: 'updateShortcut',
+        shortcut: currentShortcut
+      }, function(response) {
+        if (chrome.runtime.lastError) {
+          console.error('更新快捷键失败:', chrome.runtime.lastError);
+          setElementText('status', '快捷键保存失败');
+        }
+      });
     });
   }
   
@@ -71,6 +167,53 @@ document.addEventListener('DOMContentLoaded', function() {
   // 初始化
   async function initialize() {
     try {
+      // 添加快捷键区域折叠/展开事件监听
+      const shortcutSection = document.querySelector('.shortcut-section > div');
+      if (shortcutSection) {
+        shortcutSection.addEventListener('click', toggleShortcutConfig);
+      }
+
+      // 添加快捷键录制事件监听
+      const recordButton = document.getElementById('recordButton');
+      const resetButton = document.getElementById('resetButton');
+      const shortcutInput = document.getElementById('shortcutInput');
+
+      if (recordButton) {
+        recordButton.addEventListener('click', function() {
+          isRecording = !isRecording;
+          if (isRecording) {
+            recordButton.textContent = '修改';
+            recordButton.style.backgroundColor = '#ff9800';
+            shortcutInput.placeholder = '按下快捷键组合...';
+            shortcutInput.value = '';
+            document.addEventListener('keydown', handleKeyDown);
+            setElementText('status', '正在录制快捷键...');
+          } else {
+            recordButton.textContent = '录制';
+            recordButton.style.backgroundColor = '#4CAF50';
+            shortcutInput.placeholder = '按下想要的快捷键...';
+            document.removeEventListener('keydown', handleKeyDown);
+            
+            // 如果录制了有效快捷键则保存
+            if (shortcutInput.value) {
+              saveShortcut();
+            } else if (!currentShortcut) {
+              // 恢复默认值
+              currentShortcut = 'Ctrl+Shift+Space';
+              shortcutInput.value = currentShortcut;
+            }
+          }
+        });
+      }
+
+      if (resetButton) {
+        resetButton.addEventListener('click', function() {
+          currentShortcut = 'Ctrl+Shift+Space';
+          document.getElementById('shortcutInput').value = currentShortcut;
+          setElementText('status', '快捷键已重置为默认值');
+        });
+      }
+
       // 确保DOM完全加载后再访问元素
       testShortcutConfig();
       

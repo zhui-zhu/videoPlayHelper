@@ -7,10 +7,10 @@ let popupConnection = null; // 存储与弹出窗口的连接
 function findBilibiliTabs() {
   // 尝试多种可能的B站视频URL模式
   const urlPatterns = [
-    'https://www.bilibili.com/video/*',
-    'https://www.bilibili.com/bangumi/play/*', // 番剧页面
-    'https://m.bilibili.com/video/*', // 移动端页面
-    'https://m.bilibili.com/bangumi/play/*'
+    'https://*.bilibili.com/video/*',
+    'https://*.bilibili.com/bangumi/play/*',
+    'https://bilibili.com/video/*',
+    'https://bilibili.com/bangumi/play/*'
   ];
   
   let allTabs = [];
@@ -201,6 +201,11 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         sendResponse({ status: 'success' });
     });
     return true;
+  } else if (request.action === 'updateStatus' && sender.tab) {
+    // 处理内容脚本加载状态更新
+    bilibiliTabId = sender.tab.id;
+    updatePopupStatus('内容脚本已加载，已连接到视频页面');
+    if (debugMode) console.log('内容脚本已在标签', sender.tab.id, '加载');
   } else if (request.action === 'getDebugInfo') {
     // 返回调试信息
     sendResponse({
@@ -211,14 +216,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   }
 });
 
-// 切换视频播放状态
-function toggleVideoPlayback() {
-    if (!bilibiliTabId) {
-        if (debugMode) console.log('没有找到有效的B站视频标签');
-        updatePopupStatus('未找到可控制的视频');
-        return;
-    }
-
+// 发送播放/暂停命令到内容脚本
+function sendToggleMessage() {
     try {
         chrome.tabs.sendMessage(bilibiliTabId, { action: 'toggle-playback' }, function(response) {
             if (chrome.runtime.lastError) {
@@ -239,16 +238,33 @@ function toggleVideoPlayback() {
     }
 }
 
+// 切换视频播放状态
+function toggleVideoPlayback() {
+    if (!bilibiliTabId) {
+        if (debugMode) console.log('没有找到有效的B站视频标签，尝试重新查找...');
+        updatePopupStatus('未找到可控制的视频，正在重新查找...');
+        findBilibiliTabs(); // 尝试重新查找B站视频标签
+        
+        // 短暂延迟后再次检查
+        setTimeout(() => {
+            if (!bilibiliTabId) {
+                updatePopupStatus('未找到可控制的视频，请确保B站视频页面已打开');
+                return;
+            }
+            sendToggleMessage();
+        }, 1000);
+        return;
+    }
+    sendToggleMessage();
+}
+
 // 监听标签更新事件
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   if (changeInfo.status === 'complete') {
     // 页面加载完成，检查是否是B站视频页面
-    if (tab.url && (
-      tab.url.startsWith('https://www.bilibili.com/video/') || 
-      tab.url.startsWith('https://www.bilibili.com/bangumi/play/') ||
-      tab.url.startsWith('https://m.bilibili.com/video/') ||
-      tab.url.startsWith('https://m.bilibili.com/bangumi/play/')
-    )) {
+    // 使用正则表达式匹配所有B站子域名的视频页面
+      const bilibiliRegex = /^https:\/\/(.*\.)?bilibili\.com\/(video|bangumi\/play)\//;
+      if (tab.url && bilibiliRegex.test(tab.url)) {
       if (debugMode) console.log('检测到B站页面加载完成:', tab.url);
       findBilibiliTabs();
     }

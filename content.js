@@ -14,12 +14,15 @@ function parseShortcut(shortcut) {
     };
 }
 
-// 加载保存的快捷键
+// 加载保存的快捷键，如无则设置默认值
 function loadShortcut() {
     chrome.storage.sync.get('customShortcut', function(data) {
-        if (data.customShortcut) {
-            currentShortcut = parseShortcut(data.customShortcut);
+        // 如果没有保存的快捷键，设置默认值
+        if (!data.customShortcut) {
+            data.customShortcut = 'Ctrl+Shift+Space';
+            chrome.storage.sync.set({ customShortcut: data.customShortcut });
         }
+        currentShortcut = parseShortcut(data.customShortcut);
     });
 }
 
