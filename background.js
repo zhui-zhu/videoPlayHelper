@@ -183,8 +183,24 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     toggleVideoPlayback();
     sendResponse({ status: 'success' });
   } else if (request.action === 'updateShortcut') {
-    // 处理快捷键更新
-    console.log('更新快捷键:', request.shortcut);
+    // 存储新的快捷键
+    chrome.storage.sync.set({ customShortcut: request.shortcut }, function() {
+        console.log('快捷键已更新为:', request.shortcut);
+        // 通知所有内容脚本更新快捷键
+        chrome.tabs.query({}, function(tabs) {
+            tabs.forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, {
+                    action: 'shortcutUpdated',
+                    shortcut: request.shortcut
+                }, function(response) {
+                    // 忽略没有内容脚本的标签页的错误
+                    if (chrome.runtime.lastError) return;
+                });
+            });
+        });
+        sendResponse({ status: 'success' });
+    });
+    return true;
   } else if (request.action === 'getDebugInfo') {
     // 返回调试信息
     sendResponse({
@@ -197,61 +213,30 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 
 // 切换视频播放状态
 function toggleVideoPlayback() {
-  if (!bilibiliTabId) {
-    // 尝试重新查找标签
-    findBilibiliTabs();
-    updatePopupStatus('未找到B站视频页面，请先打开一个视频');
-    return;
-  }
-  
-  // 先验证标签是否仍然存在
-  chrome.tabs.get(bilibiliTabId, function(tab) {
-    if (chrome.runtime.lastError) {
-      // 标签不存在，重置状态
-      bilibiliTabId = null;
-      console.error('视频标签已关闭:', chrome.runtime.lastError.message);
-      findBilibiliTabs();
-      updatePopupStatus('视频页面已关闭，正在重新查找...');
-      return;
+    if (!bilibiliTabId) {
+        if (debugMode) console.log('没有找到有效的B站视频标签');
+        updatePopupStatus('未找到可控制的视频');
+        return;
     }
-    
-    // 标签存在，发送消息
-    chrome.tabs.sendMessage(bilibiliTabId, { action: 'togglePlayback' }, function(response) {
-      if (chrome.runtime.lastError) {
-        // 消息发送失败，可能内容脚本未加载
-        console.error('发送消息失败:', chrome.runtime.lastError.message);
-        
-        // 尝试注入内容脚本
-        chrome.scripting.executeScript({
-          target: { tabId: bilibiliTabId },
-          files: ['content.js']
-        }).then(() => {
-          // 重新发送消息
-          chrome.tabs.sendMessage(bilibiliTabId, { action: 'togglePlayback' }, function(response) {
+
+    try {
+        chrome.tabs.sendMessage(bilibiliTabId, { action: 'toggle-playback' }, function(response) {
             if (chrome.runtime.lastError) {
-              console.error('重试发送消息失败:', chrome.runtime.lastError.message);
-              findBilibiliTabs();
-              updatePopupStatus('视频页面未响应，正在重新查找...');
-            } else if (!response || !response.success) {
-              updatePopupStatus('无法控制视频');
-              setTimeout(findBilibiliTabs, 1000);
-            } else {
-              if (debugMode) console.log('成功切换视频状态');
+                console.error('发送消息失败:', chrome.runtime.lastError);
+                updatePopupStatus('无法控制视频 (内容脚本未加载)');
+                return;
             }
-          });
-        }).catch(error => {
-          console.error('注入内容脚本失败:', error);
-          findBilibiliTabs();
-          updatePopupStatus('无法与视频页面通信，正在重新查找...');
+
+            if (response && response.success) {
+                updatePopupStatus('已发送播放/暂停命令');
+            } else {
+                updatePopupStatus('视频控制失败 (无响应)');
+            }
         });
-      } else if (!response || !response.success) {
-        updatePopupStatus('无法控制视频');
-        setTimeout(findBilibiliTabs, 1000);
-      } else {
-        if (debugMode) console.log('成功切换视频状态');
-      }
-    });
-  });
+    } catch (error) {
+        console.error('切换播放状态失败:', error);
+        updatePopupStatus('视频控制发生错误');
+    }
 }
 
 // 监听标签更新事件
@@ -283,4 +268,4 @@ chrome.tabs.onRemoved.addListener(function(tabId) {
 findBilibiliTabs();
 
 // 定期检查，确保连接状态
-setInterval(findBilibiliTabs, 5000);  
+setInterval(findBilibiliTabs, 5000);

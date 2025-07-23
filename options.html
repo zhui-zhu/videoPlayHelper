@@ -64,16 +64,14 @@
     <h2>全局视频控制器 - 设置</h2>
 
     <div class="option">
-        <label for="shortcut">选择快捷键:</label>
-        <select id="shortcut">
-            <option value="Ctrl+Space">Ctrl+Space (Windows/Linux)</option>
-            <option value="Command+Space">Command+Space (Mac)</option>
-            <option value="Alt+Space">Alt+Space</option>
-            <option value="Ctrl+P">Ctrl+P</option>
-            <option value="Command+P">Command+P</option>
-        </select>
+        <label for="shortcut">自定义快捷键:</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="shortcutInput" placeholder="按下想要的快捷键..." readonly style="flex-grow: 1; padding: 8px;">
+            <button id="recordButton" class="save-button">录制</button>
+            <button id="resetButton" class="save-button" style="background-color: #f44336;">重置</button>
+        </div>
+        <small style="color: #666; margin-top: 5px; display: block;">提示: 支持Ctrl、Alt、Shift、Command组合键</small>
     </div>
-
     <div class="option">
         <label>提示设置:</label>
         <div class="shortcut-option">
@@ -85,25 +83,103 @@
             <label for="showNotification">播放失败时显示通知</label>
         </div>
     </div>
-
     <button class="save-button" id="saveButton">保存设置</button>
     <span id="save-status">设置已保存</span>
 
     <script>
-        // 加载设置
+        // 快捷键录制状态
+        let isRecording = false;
+        let currentShortcut = '';
+
+        // 加载已保存的快捷键
+        function loadSavedShortcut() {
+            chrome.storage.sync.get('shortcut', function(items) {
+                if (items.shortcut) {
+                    currentShortcut = items.shortcut;
+                    document.getElementById('shortcutInput').value = currentShortcut;
+                }
+            });
+        }
+
+        // 处理按键事件，录制快捷键
+        function handleKeyDown(e) {
+            if (!isRecording) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // 收集修饰键
+            const modifiers = [];
+            if (e.ctrlKey) modifiers.push('Ctrl');
+            if (e.altKey) modifiers.push('Alt');
+            if (e.shiftKey) modifiers.push('Shift');
+            if (e.metaKey) modifiers.push('Command');
+
+            // 获取主键（忽略修饰键本身）
+            const key = e.key.toLowerCase();
+            if (['control', 'alt', 'shift', 'meta', 'command'].includes(key)) return;
+
+            // 组合快捷键字符串
+            if (modifiers.length > 0) {
+                currentShortcut = modifiers.join('+') + '+' + key.toUpperCase();
+                document.getElementById('shortcutInput').value = currentShortcut;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
-            // 从存储中获取设置
-            chrome.storage.sync.get(['shortcut', 'showToast', 'showNotification'], function (items) {
-                document.getElementById('shortcut').value = items.shortcut || 'Ctrl+Space';
+            // 加载设置
+            chrome.storage.sync.get(['showToast', 'showNotification'], function (items) {
                 document.getElementById('showToast').checked = items.showToast !== undefined ? items.showToast : true;
                 document.getElementById('showNotification').checked = items.showNotification !== undefined ? items.showNotification : true;
             });
 
+            // 加载已保存的快捷键
+            loadSavedShortcut();
+
+            // 录制按钮事件
+            const recordButton = document.getElementById('recordButton');
+            const shortcutInput = document.getElementById('shortcutInput');
+
+            recordButton.addEventListener('click', function() {
+                isRecording = !isRecording;
+                if (isRecording) {
+                    recordButton.textContent = '正在录制...';
+                    recordButton.style.backgroundColor = '#ff9800';
+                    shortcutInput.placeholder = '按下快捷键组合...';
+                    shortcutInput.value = '';
+                    // 添加全局按键监听
+                    document.addEventListener('keydown', handleKeyDown);
+                } else {
+                    recordButton.textContent = '录制';
+                    recordButton.style.backgroundColor = '#4CAF50';
+                    shortcutInput.placeholder = '按下想要的快捷键...';
+                    // 移除按键监听
+                    document.removeEventListener('keydown', handleKeyDown);
+                    // 如果未录制任何快捷键，恢复之前的
+                    if (!shortcutInput.value && currentShortcut) {
+                        shortcutInput.value = currentShortcut;
+                    }
+                }
+            });
+
+            // 重置按钮事件
+            document.getElementById('resetButton').addEventListener('click', function() {
+                currentShortcut = '';
+                document.getElementById('shortcutInput').value = '';
+                chrome.storage.sync.remove('shortcut');
+            });
+
             // 保存设置
             document.getElementById('saveButton').addEventListener('click', function () {
-                const shortcut = document.getElementById('shortcut').value;
+                const shortcut = document.getElementById('shortcutInput').value;
                 const showToast = document.getElementById('showToast').checked;
                 const showNotification = document.getElementById('showNotification').checked;
+
+                // 验证快捷键
+                if (!shortcut) {
+                    alert('请先录制快捷键');
+                    return;
+                }
 
                 // 保存到存储
                 chrome.storage.sync.set({
@@ -118,7 +194,10 @@
                         status.style.display = 'none';
                     }, 2000);
 
-                    // 更新快捷键
+                    // 更新当前快捷键
+                    currentShortcut = shortcut;
+
+                    // 通知background更新快捷键
                     chrome.runtime.sendMessage({ action: 'updateShortcut', shortcut: shortcut });
                 });
             });

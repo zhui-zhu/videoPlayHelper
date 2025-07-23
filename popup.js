@@ -11,16 +11,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 测试快捷键配置
   function testShortcutConfig() {
-    chrome.commands.getAll(function(commands) {
-      const toggleCommand = commands.find(cmd => cmd.name === 'toggle-playback');
-      
-      if (toggleCommand) {
-        console.log('快捷键配置:', toggleCommand.shortcut);
-        setElementText('shortcut-info', `当前快捷键: ${toggleCommand.shortcut}`);
-      } else {
-        console.error('未找到toggle-playback命令配置');
-        setElementText('shortcut-info', '快捷键配置错误');
-      }
+    chrome.storage.sync.get('customShortcut', function(data) {
+      const shortcut = data.customShortcut || '未设置';
+      setElementText('shortcut-info', `当前快捷键: ${shortcut}`);
     });
   }
   
@@ -130,4 +123,4 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 启动初始化
   initialize();
-});    
+});
