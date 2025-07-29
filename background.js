@@ -174,6 +174,12 @@ chrome.commands.onCommand.addListener(function(command) {
   if (command === 'toggle-playback') {
     if (debugMode) console.log('执行播放/暂停切换');
     toggleVideoPlayback();
+  } else if (command === 'rewind') {
+    if (debugMode) console.log('执行快退10秒');
+    rewindVideo();
+  } else if (command === 'fast-forward') {
+    if (debugMode) console.log('执行快进10秒');
+    fastForwardVideo();
   }
 });
 
@@ -236,6 +242,46 @@ function sendToggleMessage() {
         console.error('切换播放状态失败:', error);
         updatePopupStatus('视频控制发生错误');
     }
+}
+
+// 快退视频10秒
+function rewindVideo() {
+  findBilibiliTabs();
+  if (bilibiliTabId) {
+    chrome.scripting.executeScript({
+      target: { tabId: bilibiliTabId },
+      func: () => {
+        const video = document.querySelector('video:not([class*="ad"])');
+        if (video) {
+          video.currentTime = Math.max(0, video.currentTime - 10);
+        }
+      }
+    }).catch(error => {
+      console.error('快退执行失败:', error);
+    });
+  } else {
+    updatePopupStatus('没有找到可控制的视频标签');
+  }
+}
+
+// 快进视频10秒
+function fastForwardVideo() {
+  findBilibiliTabs();
+  if (bilibiliTabId) {
+    chrome.scripting.executeScript({
+      target: { tabId: bilibiliTabId },
+      func: () => {
+        const video = document.querySelector('video:not([class*="ad"])');
+        if (video) {
+          video.currentTime = Math.min(video.duration, video.currentTime + 10);
+        }
+      }
+    }).catch(error => {
+      console.error('快进执行失败:', error);
+    });
+  } else {
+    updatePopupStatus('没有找到可控制的视频标签');
+  }
 }
 
 // 切换视频播放状态

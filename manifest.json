@@ -33,6 +33,20 @@
         "mac": "Command+Shift+Space"
       },
       "description": "跨标签控制视频播放/暂停"
+    },
+    "rewind": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Left",
+        "mac": "Command+Shift+Left"
+      },
+      "description": "跨标签控制视频快退10秒"
+    },
+    "fast-forward": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Right",
+        "mac": "Command+Shift+Right"
+      },
+      "description": "跨标签控制视频快进10秒"
     }
   },
   "action": {
